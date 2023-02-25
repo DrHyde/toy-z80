@@ -1,0 +1,6 @@
+port_mem_bank   = 0
+port_mem_unbank = 1
+
+port_io_wr_stdout = 2
+
+port_hw_start_clock = 0xFF
