@@ -1,19 +1,20 @@
-INCLUDE "_constants.z80"
+ORG 0x0000
+
+INCLUDE "_global_constants.z80"
 
 loader_part1:
         DI
-        LD A, 'L'
-        OUT (port_io_wr_stdout), A
+        ; LD A, 'L'
+        ; OUT (port_io_wr_stdout), A
         LD HL, loader__part2         ; copy rest of boot loader to top of memory
         LD DE, 0xF000
         LD BC, loader__part2_end - loader__part2
         LDIR
-        JP 0xF003
+        JP 0xF000
 
 loader__part2:  ; this is really at 0xF000
-        STOP
-        LD A, 'D'
-        OUT (port_io_wr_stdout), A
+        ; LD A, 'D'
+        ; OUT (port_io_wr_stdout), A
     ; page out the boot loader ROM
         LD A, 0                  ; bank 0 ...
         OUT (port_mem_unbank), A ; unbank
@@ -25,12 +26,10 @@ loader__part2:  ; this is really at 0xF000
     ; page out the OS ROM
         LD A, 1
         OUT (port_mem_unbank), A
-        LD A, 'R'
-        OUT (port_io_wr_stdout), A
-        LD A, "\n"
-        OUT (port_io_wr_stdout), A
-    ; start the clock
-        OUT (port_hw_start_clock), A
+        ; LD A, 'R'
+        ; OUT (port_io_wr_stdout), A
+        ; LD A, "\n"
+        ; OUT (port_io_wr_stdout), A
 
     ; TODO any machine-specific OS config goes here
     ; eg loading device drivers

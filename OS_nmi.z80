@@ -1,0 +1,48 @@
+ORG 0x0062
+
+INCLUDE "_OS_constants.z80"
+
+clock_low16:
+        DEFW 0
+clock_high16:
+        DEFW 0
+
+nmi:
+        PUSH AF
+        LD A, (nmi__in_nmi)
+        CP 0
+        JR Z, nmi__chk_in_nmi__NO
+        POP AF
+        RETN
+nmi__chk_in_nmi__NO:
+        INC A                     ; we're not. record that we are
+        LD (nmi__in_nmi), A
+
+    ; inc clock
+        PUSH HL
+        LD HL, (clock_low16)      ; first the low 16 bits
+        INC L
+        JR NZ, nmi__clock_store_low16
+        INC H
+nmi__clock_store_low16:
+        LD (clock_low16), HL
+        JR NZ, nmi__finished_updating_clock ; no need to bump high 16  if the INC H didn't result in zero
+
+        LD HL, (clock_high16)     ; update the high sixteen bits
+        INC L
+        JR NZ, nmi__clock_store_high16
+        INC H
+nmi__clock_store_high16:
+        LD (clock_high16), HL
+nmi__finished_updating_clock:
+        POP HL
+
+        ;   ... process switch? ...
+
+        DEC A                     ; record that we're no longer processing an NMI
+        LD (nmi__in_nmi), A
+        POP AF
+        RETN
+
+nmi__in_nmi:
+        DEFB 0x00
