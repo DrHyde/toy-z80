@@ -1,0 +1,6 @@
+port_mem_bank   equ 0
+port_mem_unbank equ 1
+
+port_io_wr_stdout equ 2
+
+port_hw_start_clock equ 0xFF

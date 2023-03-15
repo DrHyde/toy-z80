@@ -1,19 +1,19 @@
-MACRO OSFUNC {
-        RST 1
-}
+MACRO OSFUNC
+        RST 0x08
+ENDM
 
-MACRO PUSHDATA {
+MACRO PUSHDATA
         PUSH HL
         PUSH DE
         PUSH BC
         PUSH IX
         PUSH IY
-}
+ENDM
 
-MACRO POPDATA {
+MACRO POPDATA
         POP IY
         POP IX
         POP BC
         POP DE
         POP HL
-}
+ENDM

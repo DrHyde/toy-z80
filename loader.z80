@@ -1,6 +1,6 @@
 ORG 0x0000
 
-INCLUDE "_global_constants.z80"
+INCLUDE "_constants.z80"
 
 loader_part1:
         DI
