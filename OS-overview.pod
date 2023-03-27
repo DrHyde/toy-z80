@@ -38,8 +38,9 @@ to this port works.
 
 =head2 BOOT LOADER
 
-The machine starts with PC = 0x0000, the Boot ROM paged in at 0x0000
-and the OS ROM paged in at 0x4000.
+The machine starts with PC = 0x0000, the Boot ROM paged in at 0x0000.
+It will (eventually) allow choosing various OSes. For now however it
+assumes that the OS ROM paged in at 0x4000.
 
 The Boot loader first copies some code to the top of memory, then
 jumps to it.  That code disables the Boot ROM, copies the first
@@ -54,54 +55,57 @@ The stack is initialised and the memory-map reset.
 
 It then reads each port in turn until no more data are available,
 flushing them.  The various bits of memory reserved for the OS are
-then marked as such in the memory map.  Finally, the file
-C<shell.cmd> is executed.
+then marked as such in the memory map.
 
-=head1 REGISTERS
+The root fs is mounted.
 
-The alternate register set may be used by OS functions.
+/boot is executed.
+
+Finally, file C</bin/shell.cmd> has memory allocated, is loaded, and is
+executed.
 
 =head1 MEMORY MAP
 
-    0xFF80 to 0xFFFF: stack
-    0xFF00 to 0xFF7F: memory allocation bitmap
-                      each bit represents 64 bytes
+    0x0000 to 0x00FF: OS code
+    0x0100 to 0x01FF: OS data
+      0x0100 to 0x017F: process list (16 bytes per)
+      0x0180 to 0x01FF: memory allocation table
+                        each nibble (a PID) represents 512 bytes.
+                        0b0000 means unallocated, 0b1111 means allocated
+                        to the OS
+    0xFF80 to 0xFFFF: OS stack
     ...
     0x0000 to 0xXXXX: OS code
 
 =head1 ACCESS TO OS FUNCTIONS FROM USER CODE
 
-Parameters are passed via the stack, and are all sixteen bits long
-The last parameter passed should be the function number to call.
-To execute the function, C<RST 1>.
-RST 1 itself is not re-entrant.
+To execute the function, C<RST 1>. RST 1 itself is not re-entrant. Input
+parameters are pointed to by IX. IY contains the address of a big enough
+chunk of memory for the output.
 
 =head1 NMIs
 
 The NMI increments a 32-bit clock counter in memory and may, if
-we're not inside RST 1, may perform a task switch.
+we're not inside RST 1, perform a task switch.
 
 =head2 RST 1
 
-This function saves the user's registers, pages in the OS ROM, and calls
-the relevant function.  When that function returns, the OS ROM is paged
-back out and registers restored.  Any return values will be on the
-stack.
+This function switches to the alternate register set, pages in the OS ROM
+and runs the relevant function. When that function returns, the OS ROM is
+paged back out and registers restored.
 
 =head1 PROCESSES
 
 User processes may be loaded and executed at any address.
 Consequently they should not use any absolute addresses in their code.
 
+Up to 14 concurrent processes are supported, numbered 1 to 14.
+
 Associated with each process is a control structure.  This is stored
 at 0xXXXX + 0xXX * PID and consists of:
 
     offset | size | use
     -------------------
-    0      | 2    | storage for AF register
-    2      | 2    | storage for BC register
-    4      | 2    | storage for DE register
-    6      | 2    | storage for HL register
-    8      | 2    | storage for PC register
-    10     | 2    | storage for SP register
+    0      | 2    | storage for PC register
+    1      | 2    | storage for SP register
 
