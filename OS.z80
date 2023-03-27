@@ -5,27 +5,24 @@ INCLUDE "_macros.z80"
 rst0:
         DI
         IM 1
-        LD HL, 0x0000
+        LD HL, stack_top + 1
         JR init__part2   ; jump to immediately after RST block
 
 osfunc: ; RST 0x08
-        PUSH AF                    ; first, see if we're already in OSFUNC
-        LD A, (osfunc__in_osfunc)
-        CP 0
-        JR NZ, osfunc__chk_in_osfunc__NO
-        JR osfunc__recurse        ; we are, so crash
-osfunc__chk_in_osfunc__NO:
-        INC A
-        LD (osfunc__in_osfunc), A  ; we're not. record that we are
-        ; PUSHDATA
+        SWAPREGS                  ; first, see if we're already in OSFUNC
+osfunc__in_osfunc equ $ + 1
+        LD A, 0                   ; this 0 is correct for the first call and will
+                                  ; be modified by future calls and on exit
+        CP 1
+        JR Z, osfunc__recurse     ; we are, so crash
+        INC A                     ; we're not. record that we are
+        LD (osfunc__in_osfunc), A
     ;   ... do osfunc ...
-        ; POPDATA
+        LD A, (osfunc__in_osfunc)
         DEC A                      ; mark that we're no longer in OSFUNC
         LD (osfunc__in_osfunc), A
-        POP AF
+        SWAPREGS
         RET
-osfunc__in_osfunc:
-        DEFB 0x00
 osfunc__recurse:                   ; ... print message ...
         JR osfunc__recurse
 
@@ -45,7 +42,6 @@ init__part2:
      ; start the clock
         LD A, 1
         OUT (port_hw_start_clock), A
-
         EI
 
 load_shell:
@@ -55,6 +51,31 @@ load_shell:
         ; PUSH HL
         ; OSFUNC
         JR load_shell
+
+        ; add B little-endian bytes from (HL) to (DE), destroys B, AF/DE/HL
+add_int:
+        OR A          ; reset C
+add_loop:
+        LD A,(DE)
+        ADC A,(HL)    ; add (HL) and carry flag to A and set carry flag if necessary
+        LD (DE),A
+        INC HL
+        INC DE
+        DJNZ add_loop
+        RET
+
+        ; sub B little-endian bytes at (HL) from (DE), destroys B, AF/DE/HL
+sub_int:
+        OR A
+sub_loop:
+        LD A,(DE)
+        SBC A,(HL)
+        LD (DE),A
+        INC HL
+        INC DE
+        DJNZ sub_loop
+        RET
+
 shell_name:
         DEFM "shell.cmd", 0x00
 os_readport:
@@ -62,11 +83,12 @@ os_exec:
 
 ORG 0x0062
 
-clock_low16:
+clock_32_bits:
         DEFW 0
-clock_high16:
         DEFW 0
 
+; can be called while in OS code or in user code, so must preserve
+; registers and stack!
 nmi:
         PUSH AF
         LD A, (nmi__in_nmi)
@@ -78,31 +100,25 @@ nmi__chk_in_nmi__NO:
         INC A                     ; we're not. record that we are
         LD (nmi__in_nmi), A
 
-    ; inc clock
-        PUSH HL
-        LD HL, (clock_low16)      ; first the low 16 bits
-        INC L
-        JR NZ, nmi__clock_store_low16
-        INC H
-nmi__clock_store_low16:
-        LD (clock_low16), HL
-        JR NZ, nmi__finished_updating_clock ; no need to bump high 16  if the INC H didn't result in zero
-
-        LD HL, (clock_high16)     ; update the high sixteen bits
-        INC L
-        JR NZ, nmi__clock_store_high16
-        INC H
-nmi__clock_store_high16:
-        LD (clock_high16), HL
-nmi__finished_updating_clock:
+        PUSH HL                   ; inc clock
+        PUSH DE
+        PUSH BC
+        LD B, 4
+        LD DE, clock_32_bits
+        LD HL, _32_bit_little_endian_1
+        CALL add_int
+        POP BC
+        POP DE
         POP HL
 
         ;   ... process switch? ...
 
-        DEC A                     ; record that we're no longer processing an NMI
+        LD A, 0                   ; record that we're no longer processing an NMI
         LD (nmi__in_nmi), A
         POP AF
         RETN
-
 nmi__in_nmi:
         DEFB 0x00
+_32_bit_little_endian_1:
+        DEFW 1
+        DEFW 0

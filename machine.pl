@@ -49,10 +49,10 @@ $cpu->add_output_device(address => 0x01, function => \&mem_unbank);
 $cpu->add_output_device(address => 0x02, function => \&io_wr_stdout);
 $cpu->add_output_device(address => 0xFF, function => \&hw_start_clock);
 
-# setitimer(ITIMER_VIRTUAL, 1, 1);
-# $SIG{VTALRM} = sub {
-setitimer(ITIMER_REAL, 0.01, 0.01);
-$SIG{ALRM} = sub {
+setitimer(ITIMER_VIRTUAL, 0.01, 0.01);
+$SIG{VTALRM} = sub {
+# setitimer(ITIMER_REAL, 0.01, 0.01);
+# $SIG{ALRM} = sub {
     if(my $key = ReadKey(-1)) {
         $cpu->{STOPREACHED} = 1;
         warn "Got char $key\n";
@@ -88,7 +88,7 @@ $win->addstr(3, 1, "PC:");
 $win->addstr(3, 24, "Stack  SP:");
 $win->addstr(5, 42, "(top)");
 
-$win->addstr(16, 24, "Clock:");
+$win->addstr(16, 24, "Uptime:");
 
 while(!$cpu->stopped()) {
     $cpu->run(1000);
@@ -109,9 +109,11 @@ while(!$cpu->stopped()) {
     #  }
 
     $win->addstr(16, 31, sprintf(
-        "0x%04x:%04x",
-        $cpu->memory->peek16(0x0064),
-        $cpu->memory->peek16(0x0062)
+        "0x%02x%02x%02x%02x",
+        $cpu->memory->peek(0x0065),
+        $cpu->memory->peek(0x0064),
+        $cpu->memory->peek(0x0063),
+        $cpu->memory->peek(0x0062),
     ));
 
     $win->refresh();
