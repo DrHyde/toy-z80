@@ -1,5 +1,4 @@
-stack_top  equ 0xFFFF
-stack_base equ 0xFF80
+stack_top  equ 0x3FFF
 
 port_mem_bank       equ 0
 port_mem_unbank     equ 1

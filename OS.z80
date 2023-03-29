@@ -9,50 +9,57 @@ rst0:
         JR init__part2   ; jump to immediately after RST block
 
 osfunc: ; RST 0x08
-        SWAPREGS                  ; first, see if we're already in OSFUNC
-osfunc__in_osfunc equ $ + 1
+        SWAPREGS
+osfunc__in_osfunc equ $ + 1       ; first, see if we're already in OSFUNC
         LD A, 0                   ; this 0 is correct for the first call and will
                                   ; be modified by future calls and on exit
         CP 1
         JR Z, osfunc__recurse     ; we are, so crash
         INC A                     ; we're not. record that we are
         LD (osfunc__in_osfunc), A
-    ;   ... do osfunc ...
-        LD A, (osfunc__in_osfunc)
-        DEC A                      ; mark that we're no longer in OSFUNC
+
+    ; do osfunc
+        POP HL                    ; address we want to return to
+        LD (osfunc__return_address), HL
+        POP HL                    ; address of the function to call
+        JP (HL)                   ; stack contains arguments
+
+osfunc__exit:                      ; OSFUNCs finish with a JP to here
+        LD A, (osfunc__in_osfunc)  ; mark that we're no longer in OSFUNC
+        DEC A
         LD (osfunc__in_osfunc), A
         SWAPREGS
-        RET
+osfunc__return_address equ $ + 1
+        JP 0x0000                  ; gets modified to the address we want to return to
 osfunc__recurse:                   ; ... print message ...
         JR osfunc__recurse
 
 init__part2:
         LD SP, HL             ; initialise stack
-;     ; slurp all ports to clear data
-;         LD BC, 0x8000         ; B = num ports to slurp (each is a pair) / C = port to start at
-; init__slurp_ports_loop:
-;         LD HL, os_readport
-;         PUSH HL
-;         OSFUNC
-;         POP HL                ; throw away what we put on the stack - OSFUNC will do this eventually
-;         INC C                 ;
-;         INC C                 ; point at next port
-;         DJNZ init__slurp_ports_loop
-;
-     ; start the clock
+
+; TODO: slurp all ports to clear data
+; TODO: mount root fs
+
+        ; start the clock
         LD A, 1
         OUT (port_hw_start_clock), A
         EI
+        JR load_shell
+
+ORG 0x0038                      ; RST 0x38
+        JR 0x0038
+        DEFW 0, 0, 0
 
 load_shell:
-        ; LD HL, shell_name
-        ; PUSH HL
-        ; LD HL, os_exec
-        ; PUSH HL
-        ; OSFUNC
+        LD HL, shell_name
+        PUSH HL
+        LD HL, os_exec
+        PUSH HL
+        OSFUNC
         JR load_shell
 
         ; add B little-endian bytes from (HL) to (DE), destroys B, AF/DE/HL
+        ; used by NMI so must be SUPER FAST, so always in memory
 add_int:
         OR A          ; reset C
 add_loop:
@@ -76,11 +83,6 @@ sub_loop:
         DJNZ sub_loop
         RET
 
-shell_name:
-        DEFM "shell.cmd", 0x00
-os_readport:
-os_exec:
-
 ORG 0x0062
 
 clock_32_bits:
@@ -101,18 +103,18 @@ nmi__chk_in_nmi__NO:
         LD (nmi__in_nmi), A
 
         PUSH HL                   ; inc clock
-        PUSH DE
+        PUSH DE                   ; AF has already been pushed
         PUSH BC
         LD B, 4
         LD DE, clock_32_bits
         LD HL, _32_bit_little_endian_1
         CALL add_int
-        POP BC
-        POP DE
-        POP HL
 
         ;   ... process switch? ...
 
+        POP BC
+        POP DE
+        POP HL
         LD A, 0                   ; record that we're no longer processing an NMI
         LD (nmi__in_nmi), A
         POP AF
@@ -122,3 +124,10 @@ nmi__in_nmi:
 _32_bit_little_endian_1:
         DEFW 1
         DEFW 0
+shell_name:
+        DEFB "shell.cmd", 0x00
+os_readport:
+os_exec:
+        POP HL       ; pointer to the name of the command to execute
+        OSFUNC_EXIT
+

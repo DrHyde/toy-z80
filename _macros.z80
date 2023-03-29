@@ -2,6 +2,10 @@ MACRO OSFUNC
         RST 0x08
 ENDM
 
+MACRO OSFUNC_EXIT
+        JP osfunc__exit
+ENDM
+
 MACRO SWAPREGS
         EX AF, AF'
         EXX
