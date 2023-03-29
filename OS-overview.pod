@@ -51,11 +51,8 @@ OS ROM, starts the clock, then jumps to 0x0000.
 
 There's just a few bytes 0x0000, and a jump past the RST block.
 
-The stack is initialised and the memory-map reset.
-
-It then reads each port in turn until no more data are available,
-flushing them.  The various bits of memory reserved for the OS are
-then marked as such in the memory map.
+The OS stack is initialised at 0x4000 (remember we decrement before push)
+and the memory-map reset.
 
 The root fs is mounted.
 
@@ -66,16 +63,27 @@ executed.
 
 =head1 MEMORY MAP
 
-    0x0000 to 0x00FF: OS code
-    0x0100 to 0x01FF: OS data
-      0x0100 to 0x017F: process list (16 bytes per)
-      0x0180 to 0x01FF: memory allocation table
-                        each nibble (a PID) represents 512 bytes.
-                        0b0000 means unallocated, 0b1111 means allocated
-                        to the OS
-    0xFF80 to 0xFFFF: OS stack
-    ...
-    0x0000 to 0xXXXX: OS code
+    0x0000 to 0x4000: OS code and data
+      ... to 0x005F: OS stack
+      0x0060 to 0x0061: SP storage
+      0x0062 to 0x0065: clock counter
+      0x0066 to ...: NMI
+      0x1F20 to 0x3EFF: process table (32 bytes per)
+        0x00 to 0x08: ASCIIZ name - 0x00 in first byte means no process
+        0x09 to 0x0A: SP
+        0x0B to 0x0C: HL
+        0x0D to 0x0E: BC
+        0x0F to 0x10: DE
+        0x11 to 0x12: AF
+        0x13 to 0x14: IX
+        0x15 to 0x16: IY
+        0x17 to 0x19: memory banks currently mapped (0x00 means "meh", 0x01 is unavailable)
+        0x1A:         PPID
+        0x1B:         sleep cycles remaining
+        0x1C to 0x1F: 4 bytes for file handles?
+      0x3F00 to 0x3FFF: memory bank allocation table
+        one byte per proc, 0x00 means available, 0xFF means OS, anything
+        else is a PID
 
 =head1 ACCESS TO OS FUNCTIONS FROM USER CODE
 
@@ -99,13 +107,8 @@ paged back out and registers restored.
 User processes may be loaded and executed at any address.
 Consequently they should not use any absolute addresses in their code.
 
-Up to 14 concurrent processes are supported, numbered 1 to 14.
+Up to 255 concurrent processes are supported, numbered 1 to 255 (there is no PID 0).
 
 Associated with each process is a control structure.  This is stored
-at 0xXXXX + 0xXX * PID and consists of:
-
-    offset | size | use
-    -------------------
-    0      | 2    | storage for PC register
-    1      | 2    | storage for SP register
+at 0x1F20 + 0x20 * (PID - 1) and consists of:
 
