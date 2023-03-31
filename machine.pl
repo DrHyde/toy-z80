@@ -9,6 +9,12 @@ use IO::Scalar;
 use Data::Dumper;
 use Curses;
 
+use Getopt::Long;
+my $clocktick = 0.01;
+GetOptions(
+    "clocktick" => \$clocktick
+);
+
 my $cpu = CPU::Emulator::Z80->new( # RAM is 64K of zeroes
     ports => 256,
 );
@@ -49,7 +55,7 @@ $cpu->add_output_device(address => 0x01, function => \&mem_unbank);
 $cpu->add_output_device(address => 0x02, function => \&io_wr_stdout);
 $cpu->add_output_device(address => 0xFF, function => \&hw_start_clock);
 
-setitimer(ITIMER_VIRTUAL, 0.01, 0.01);
+setitimer(ITIMER_VIRTUAL, $clocktick, $clocktick);
 $SIG{VTALRM} = sub {
 # setitimer(ITIMER_REAL, 0.01, 0.01);
 # $SIG{ALRM} = sub {
